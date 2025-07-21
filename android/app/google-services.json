@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "781787595985",
+    "project_id": "veda-jyoti",
+    "storage_bucket": "veda-jyoti.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:781787595985:android:df96ab38b07ab4758831f0",
+        "android_client_info": {
+          "package_name": "com.vedajyoti.veda_jyoti_new"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBIj1ZABCtbPc2BAZ5KCgBdVg05F8SZJJ0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
