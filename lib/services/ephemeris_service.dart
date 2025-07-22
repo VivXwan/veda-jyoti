@@ -118,95 +118,94 @@ class EphemerisService {
     }
   }
 
-  /// Convert Gregorian date to Julian Day
-  double dateTimeToJulianDay(int year, int month, int day, double hour) {
-    return Sweph.swe_julday(
-      year,
-      month,
-      day,
-      hour,
-      CalendarType.SE_GREG_CAL,
-    );
-  }
-
   /// Calculate planetary positions for a given date and time
   Future<List<Planet>> calculatePlanetPositions(
-    int year,
-    int month,
-    int day,
-    double hour, {
-    bool isSidereal = true,
-  }) async {
+    DateTime chartDateTime,
+    double timezoneOffsetInHours,
+    double longitude,
+    double latitude,
+  ) async {
     _checkInitialization();
-    
-    // Convert to Julian Day
-    final julianDay = dateTimeToJulianDay(year, month, day, hour);
-    
-    // Calculate planetary positions
-    return calculatePlanetaryPositions(julianDay, isSidereal: isSidereal);
-  }
 
-  /// Calculate planetary positions for a given Julian Day
-  List<Planet> calculatePlanetaryPositions(double julianDay, {bool isSidereal = true}) {
-    _checkInitialization();
-    
-    // Set calculation flags
-    final SwephFlag flags = isSidereal 
-        ? (SwephFlag.SEFLG_SIDEREAL | SwephFlag.SEFLG_SPEED)
-        : SwephFlag.SEFLG_SPEED;
-    
+    // 1. Convert local time to UTC
+    final utcDateTime = chartDateTime.subtract(Duration(microseconds: (timezoneOffsetInHours * 3600 * 1000000).round()));
+
+    // 2. Calculate Julian Day for UT
+    final jdUt = Sweph.swe_julday(
+      utcDateTime.year,
+      utcDateTime.month,
+      utcDateTime.day,
+      utcDateTime.hour + (utcDateTime.minute / 60) + (utcDateTime.second / 3600),
+      CalendarType.SE_GREG_CAL,
+    );
+
+    // 3. Set Sidereal Mode
+    Sweph.swe_set_sid_mode(SiderealMode.SE_SIDM_TRUE_CITRA);
+
+    // 4. Set Topocentric Position
+    Sweph.swe_set_topo(longitude, latitude, 0);
+
+    // 5. Calculate Delta T and Julian Day for ET
+    final siderealTime = Sweph.swe_sidtime(jdUt);
+    final siderealTimeHours = siderealTime / 15.0;
+    print("Sidereal Time: $siderealTimeHours");
+    print("UTC Time Before: $utcDateTime");
+    final utcDateTimeFinal = utcDateTime.subtract(Duration(microseconds: (siderealTimeHours * 3600 * 1000000).round()));
+    print("UTC Time After: $utcDateTimeFinal");
+    // 2. Calculate Julian Day for UT
+    final jdUtFinal = Sweph.swe_julday(
+      utcDateTime.year,
+      utcDateTime.month,
+      utcDateTime.day,
+      utcDateTime.hour + (utcDateTime.minute / 60) + (utcDateTime.second / 3600),
+      CalendarType.SE_GREG_CAL,
+    );
+    final deltaT = Sweph.swe_deltat(jdUtFinal);
+    final jdEt = jdUtFinal + deltaT;
+
+    // 6. Calculate Planetary Positions
+    final SwephFlag flags = SwephFlag.SEFLG_SWIEPH | SwephFlag.SEFLG_SIDEREAL | SwephFlag.SEFLG_SPEED;
     final planets = <Planet>[];
-    
-    // Calculate positions for all planets
+
     for (int i = 0; i < planetIndices.length; i++) {
-      // Special case for Ketu (South Node)
       if (i == 7) { // Ketu
-        // Get Rahu's position (must be calculated before Ketu)
         final rahuPlanet = planets.firstWhere((p) => p.index == 6);
-        // Ketu is exactly opposite to Rahu
         final ketuLongitude = (rahuPlanet.longitude + 180.0) % 360.0;
-        
         planets.add(Planet(
           index: i,
           longitude: ketuLongitude,
-          latitude: -rahuPlanet.latitude, // Opposite latitude
-          speed: rahuPlanet.speed, // Same speed as Rahu
-          house: 0, // House will be calculated later
+          latitude: -rahuPlanet.latitude,
+          speed: rahuPlanet.speed,
+          house: 0,
         ));
       } else {
+        final result = Sweph.swe_calc_ut(jdEt, planetIndices[i], flags);
+        double speed = 0.0;
+        print(result);
         try {
-          // Calculate position using Swiss Ephemeris
-          final result = Sweph.swe_calc_ut(
-            julianDay,
-            planetIndices[i],
-            flags,
-          );
-          
-          // Extract speed (daily motion)
-          double speed = 0.0;
-          try {
-            final dynamic dynamicResult = result;
-            if (dynamicResult.speedInLongitude != null) {
-              speed = dynamicResult.speedInLongitude;
-            }
-          } catch (e) {
-            // Speed calculation failed, continue with 0.0
+          final dynamic dynamicResult = result;
+          if (dynamicResult.speedInLongitude != null) {
+            speed = dynamicResult.speedInLongitude;
           }
-          
-          planets.add(Planet(
-            index: i,
-            longitude: result.longitude,
-            latitude: result.latitude,
-            speed: speed,
-            house: 0, // House will be calculated later
-          ));
         } catch (e) {
-          throw Exception('Failed to calculate position for planet ${planetNames[i]}: $e');
+          // Speed calculation failed
         }
+        planets.add(Planet(
+          index: i,
+          longitude: result.longitude,
+          latitude: result.latitude,
+          speed: speed,
+          house: 0,
+        ));
       }
     }
-    
+
     return planets;
+  }
+
+  double calculateSiderealTime(double jd_ut) {
+    _checkInitialization();
+    return Sweph.swe_sidtime(jd_ut);
   }
 
   /// Calculate the ascendant (Lagna) degree for a given time and location

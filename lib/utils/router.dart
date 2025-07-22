@@ -8,7 +8,9 @@ import '../screens/new_chart_page.dart';
 import '../screens/saved_charts_page.dart';
 import '../screens/settings_page.dart';
 import '../screens/splash_screen.dart';
+import '../screens/chart_display_screen.dart';
 import '../widgets/app_drawer.dart';
+import '../models/planet.dart';
 
 final routerProvider = Provider<GoRouter>((ref) {
   return GoRouter(
@@ -98,6 +100,13 @@ final routerProvider = Provider<GoRouter>((ref) {
           GoRoute(
             path: '/settings',
             builder: (context, state) => const SettingsPage(),
+          ),
+          GoRoute(
+            path: '/chart_display',
+            builder: (context, state) {
+              final planets = state.extra as List<Planet>;
+              return ChartDisplayScreen(planets: planets);
+            },
           ),
         ],
       ),
